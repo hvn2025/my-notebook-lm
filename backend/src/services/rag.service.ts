@@ -1,6 +1,7 @@
 import { MemoryVectorStore } from "@langchain/classic/vectorstores/memory";
-import { ChatOpenAI, OpenAIEmbeddings } from "@langchain/openai";
+import { ChatOpenAI } from "@langchain/openai";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+import { getOpenRouterEmbeddings } from "../config/open-router-embeddings.js";
 import { getOpenRouterConfig } from "../config/open-router.js";
 import { apolloSource } from "../data/apollo-source.js";
 import { env } from "../config/env.js";
@@ -13,10 +14,7 @@ export async function answerFromMemory(question: string) {
   });
   const documents = await splitter.createDocuments([apolloSource]);
 
-  const embeddings = new OpenAIEmbeddings({
-    model: "openai/text-embedding-3-small",
-    ...openRouterConfig,
-  });
+  const embeddings = getOpenRouterEmbeddings();
   const vectorStore = await MemoryVectorStore.fromDocuments(
     documents,
     embeddings,
