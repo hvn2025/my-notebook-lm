@@ -9,6 +9,7 @@
     "start": "node dist/server.js",
     "worker:dev": "tsx watch src/worker.ts",
     "worker:start": "node dist/worker.js",
+    "test:chat": "tsx src/scripts/test-chat-sse.ts",
     "prisma:generate": "prisma generate",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:verify": "tsx src/scripts/verify-database.ts"

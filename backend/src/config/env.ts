@@ -12,4 +12,5 @@ export const env = {
   openRouterEmbeddingModel:
     process.env.OPENROUTER_EMBEDDING_MODEL ??
     "openai/text-embedding-3-small",
+  ragDebug: process.env.RAG_DEBUG?.toLowerCase() === "true",
 };

@@ -2,20 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { DocumentInterface } from "@langchain/core/documents";
 import { prisma } from "../../config/db.js";
 import { EMBEDDING_DIMENSIONS } from "../../config/open-router-embeddings.js";
-
-function serializeVector(embedding: number[]) {
-  if (embedding.length !== EMBEDDING_DIMENSIONS) {
-    throw new Error(
-      `Expected ${EMBEDDING_DIMENSIONS} embedding values, received ${embedding.length}`,
-    );
-  }
-
-  if (!embedding.every(Number.isFinite)) {
-    throw new Error("Embedding contains a non-finite value");
-  }
-
-  return `[${embedding.join(",")}]`;
-}
+import { toPgVectorLiteral } from "../../utils/pg-vector.js";
 
 export async function replaceDocumentChunks(
   sourceId: string,
@@ -36,7 +23,7 @@ export async function replaceDocumentChunks(
           throw new Error(`Missing embedding for chunk ${chunkIndex}`);
         }
 
-        const vector = serializeVector(embedding);
+        const vector = toPgVectorLiteral(embedding, EMBEDDING_DIMENSIONS);
         await transaction.$executeRaw`
           INSERT INTO "DocumentChunk" (
             "id", "content", "sourceId", "chunkIndex",
