@@ -2,6 +2,7 @@ export {
   closeIngestionQueue,
   enqueueIngestionJob,
   ingestionQueue,
+  removeIngestionJob,
 } from "./ingestion-queue.js";
 export {
   INGESTION_JOB_NAME,

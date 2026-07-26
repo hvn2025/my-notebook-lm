@@ -2,8 +2,11 @@ import type { NextFunction, Request, Response } from "express";
 import {
   createPdfSource,
   createUrlSource,
+  deleteSource,
   findSourceStatus,
+  findSourcesByNotebook,
 } from "../services/source.service.js";
+import { getAuthIdentity } from "../middleware/auth.middleware.js";
 import { removeUploadedFile } from "../utils/uploaded-file.js";
 
 const uuidPattern =
@@ -43,14 +46,16 @@ export async function uploadPdfSource(
 
   try {
     const source = await createPdfSource({
+      identity: getAuthIdentity(request),
       notebookId,
       title: file.originalname,
       filePath: file.path,
     });
     response.status(202).json({ sourceId: source.id, status: source.status });
   } catch (error) {
-    await removeUploadedFile(file.path);
     next(error);
+  } finally {
+    await removeUploadedFile(file.path);
   }
 }
 
@@ -73,7 +78,11 @@ export async function registerUrlSource(
   }
 
   try {
-    const source = await createUrlSource({ notebookId, url });
+    const source = await createUrlSource({
+      identity: getAuthIdentity(request),
+      notebookId,
+      url,
+    });
     response.status(202).json({ sourceId: source.id, status: source.status });
   } catch (error) {
     next(error);
@@ -93,13 +102,61 @@ export async function getSourceStatus(
   }
 
   try {
-    const source = await findSourceStatus(sourceId);
+    const source = await findSourceStatus(getAuthIdentity(request), sourceId);
     response.json({
       sourceId: source.id,
       status: source.status,
       type: source.type,
       updatedAt: source.updatedAt,
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function listSources(
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) {
+  const notebookId = readString(request.query.notebookId);
+
+  if (!uuidPattern.test(notebookId)) {
+    response.status(400).json({ error: "A valid notebookId is required" });
+    return;
+  }
+
+  try {
+    const sources = await findSourcesByNotebook(
+      getAuthIdentity(request),
+      notebookId,
+    );
+    response.json({
+      sources: sources.map(({ _count, ...source }) => ({
+        ...source,
+        chunkCount: _count.chunks,
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function removeSource(
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) {
+  const sourceId = readString(request.params.id);
+
+  if (!uuidPattern.test(sourceId)) {
+    response.status(400).json({ error: "A valid source id is required" });
+    return;
+  }
+
+  try {
+    const result = await deleteSource(getAuthIdentity(request), sourceId);
+    response.json(result);
   } catch (error) {
     next(error);
   }

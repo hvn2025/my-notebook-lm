@@ -22,6 +22,7 @@
     "@langchain/openai": "^1.5.5",
     "@langchain/textsplitters": "^1.0.1",
     "@prisma/client": "6.15.0",
+    "@supabase/supabase-js": "^2.110.8",
     "bullmq": "^5.81.2",
     "cheerio": "^1.2.0",
     "cors": "^2.8.6",

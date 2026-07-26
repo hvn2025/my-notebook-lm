@@ -3,51 +3,53 @@ import { prisma } from "../config/db.js";
 import { HttpError } from "../errors/http-error.js";
 import {
   enqueueIngestionJob,
+  removeIngestionJob,
   type IngestionJobData,
 } from "../lib/queue/index.js";
+import type { AuthIdentity } from "../types/auth.js";
+import {
+  buildPdfStoragePath,
+  deleteStoredPdf,
+  storePdf,
+} from "./source-storage.service.js";
+import {
+  requireOwnedNotebook,
+  requireOwnedSource,
+} from "./ownership.service.js";
 
 interface PdfSourceInput {
+  identity: AuthIdentity;
   notebookId: string;
   title: string;
   filePath: string;
 }
 
 interface UrlSourceInput {
+  identity: AuthIdentity;
   notebookId: string;
   url: string;
 }
 
-async function assertNotebookExists(notebookId: string) {
-  const notebook = await prisma.notebook.findUnique({
-    where: { id: notebookId },
-    select: { id: true },
-  });
-
-  if (!notebook) {
-    throw new HttpError(404, "Notebook not found");
-  }
-}
-
-async function enqueueSource(sourceId: string, data: IngestionJobData) {
+async function enqueueSource(data: IngestionJobData) {
   try {
     await enqueueIngestionJob(data);
   } catch (error) {
-    await prisma.source
-      .update({
-        where: { id: sourceId },
-        data: { status: SourceStatus.FAILED },
-      })
-      .catch((updateError: unknown) => {
-        console.error("Unable to mark source as failed:", updateError);
-      });
-
+    console.error(`Unable to enqueue source ${data.sourceId}:`, error);
     throw new HttpError(503, "Unable to enqueue source for ingestion");
   }
 }
 
-export async function createPdfSource(input: PdfSourceInput) {
-  await assertNotebookExists(input.notebookId);
+async function rollbackSource(sourceId: string, storagePath?: string) {
+  if (storagePath) {
+    await deleteStoredPdf(storagePath).catch((error: unknown) => {
+      console.error(`Unable to roll back stored PDF ${storagePath}:`, error);
+    });
+  }
+  await prisma.source.deleteMany({ where: { id: sourceId } });
+}
 
+export async function createPdfSource(input: PdfSourceInput) {
+  await requireOwnedNotebook(input.identity, input.notebookId);
   const source = await prisma.source.create({
     data: {
       notebookId: input.notebookId,
@@ -57,49 +59,92 @@ export async function createPdfSource(input: PdfSourceInput) {
     },
     select: { id: true, status: true },
   });
+  const storagePath = buildPdfStoragePath(
+    input.identity.authUserId,
+    input.notebookId,
+    source.id,
+  );
 
-  await enqueueSource(source.id, {
-    sourceId: source.id,
-    type: "PDF",
-    filePath: input.filePath,
-  });
-
-  return source;
+  try {
+    await storePdf(input.filePath, storagePath);
+    await prisma.source.update({
+      where: { id: source.id },
+      data: { storagePath },
+    });
+    await enqueueSource({ sourceId: source.id, type: "PDF", storagePath });
+    return source;
+  } catch (error) {
+    await rollbackSource(source.id, storagePath);
+    throw error;
+  }
 }
 
 export async function createUrlSource(input: UrlSourceInput) {
-  await assertNotebookExists(input.notebookId);
-  const parsedUrl = new URL(input.url);
-
+  await requireOwnedNotebook(input.identity, input.notebookId);
+  const url = new URL(input.url).toString();
   const source = await prisma.source.create({
     data: {
       notebookId: input.notebookId,
-      title: parsedUrl.hostname,
-      url: parsedUrl.toString(),
+      title: new URL(url).hostname,
+      url,
       type: SourceType.URL,
       status: SourceStatus.PENDING,
     },
     select: { id: true, status: true },
   });
 
-  await enqueueSource(source.id, {
-    sourceId: source.id,
-    type: "URL",
-    url: parsedUrl.toString(),
-  });
-
-  return source;
+  try {
+    await enqueueSource({ sourceId: source.id, type: "URL", url });
+    return source;
+  } catch (error) {
+    await rollbackSource(source.id);
+    throw error;
+  }
 }
 
-export async function findSourceStatus(sourceId: string) {
-  const source = await prisma.source.findUnique({
+export async function findSourceStatus(
+  identity: AuthIdentity,
+  sourceId: string,
+) {
+  await requireOwnedSource(identity, sourceId);
+  return prisma.source.findUniqueOrThrow({
     where: { id: sourceId },
     select: { id: true, status: true, type: true, updatedAt: true },
   });
+}
 
-  if (!source) {
-    throw new HttpError(404, "Source not found");
+export async function findSourcesByNotebook(
+  identity: AuthIdentity,
+  notebookId: string,
+) {
+  await requireOwnedNotebook(identity, notebookId);
+  return prisma.source.findMany({
+    where: { notebookId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      title: true,
+      url: true,
+      type: true,
+      status: true,
+      createdAt: true,
+      updatedAt: true,
+      _count: { select: { chunks: true } },
+    },
+  });
+}
+
+export async function deleteSource(identity: AuthIdentity, sourceId: string) {
+  const { source } = await requireOwnedSource(identity, sourceId);
+  let jobState = "unavailable";
+
+  try {
+    jobState = await removeIngestionJob(sourceId);
+  } catch (error) {
+    console.error(`Unable to remove ingestion job ${sourceId}:`, error);
   }
 
-  return source;
+  if (source.storagePath) await deleteStoredPdf(source.storagePath);
+  await prisma.source.delete({ where: { id: sourceId } });
+  return { sourceId, deleted: true, jobState };
 }

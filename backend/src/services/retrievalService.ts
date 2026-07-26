@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../config/db.js";
 import {
   EMBEDDING_DIMENSIONS,
@@ -15,8 +16,16 @@ interface RetrievedChunk {
 async function searchNotebookChunks(
   notebookId: string,
   embedding: number[],
+  sourceIds?: string[],
 ) {
   const vector = toPgVectorLiteral(embedding, EMBEDDING_DIMENSIONS);
+  const sourceFilter = sourceIds === undefined
+    ? Prisma.empty
+    : sourceIds.length === 0
+      ? Prisma.sql`AND FALSE`
+      : Prisma.sql`AND source."id" IN (${Prisma.join(
+          sourceIds.map((sourceId) => Prisma.sql`${sourceId}::uuid`),
+        )})`;
 
   const startedAt = performance.now();
   const chunks = await prisma.$queryRaw<RetrievedChunk[]>`
@@ -31,6 +40,7 @@ async function searchNotebookChunks(
     WHERE source."notebookId" = ${notebookId}::uuid
       AND source."status" = 'COMPLETED'
       AND chunk."embedding" IS NOT NULL
+      ${sourceFilter}
     ORDER BY chunk."embedding" <=> ${vector}::vector(1536)
     LIMIT 5
   `;
@@ -51,6 +61,7 @@ export async function retrieveRelevantChunks(
   originalQuestion: string,
   stepBackQuestion: string,
   notebookId: string,
+  sourceIds?: string[],
 ) {
   const embeddings = getOpenRouterEmbeddings();
   const [originalEmbedding, stepBackEmbedding] = await Promise.all([
@@ -59,8 +70,8 @@ export async function retrieveRelevantChunks(
   ]);
 
   const [originalResult, stepBackResult] = await Promise.all([
-    searchNotebookChunks(notebookId, originalEmbedding),
-    searchNotebookChunks(notebookId, stepBackEmbedding),
+    searchNotebookChunks(notebookId, originalEmbedding, sourceIds),
+    searchNotebookChunks(notebookId, stepBackEmbedding, sourceIds),
   ]);
 
   const uniqueChunks = new Map<string, RetrievedChunk>();

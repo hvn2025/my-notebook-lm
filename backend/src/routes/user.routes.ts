@@ -1,6 +1,13 @@
 import { Router } from "express";
-import { createUser } from "../controllers/user.controller.js";
+import {
+  checkUsernameAvailability,
+  getCurrentUser,
+  syncCurrentUser,
+} from "../controllers/user.controller.js";
+import { requireAuth } from "../middleware/auth.middleware.js";
 
 export const userRouter = Router();
 
-userRouter.post("/", createUser);
+userRouter.get("/username-available", checkUsernameAvailability);
+userRouter.get("/me", requireAuth, getCurrentUser);
+userRouter.post("/me", requireAuth, syncCurrentUser);

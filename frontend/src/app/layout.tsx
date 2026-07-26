@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NotebookLM Clone",
-  description: "A simple in-memory RAG application",
+  title: "My Notebook LM",
+  description: "A source-grounded research and notebook workspace",
 };
 
 export default function RootLayout({

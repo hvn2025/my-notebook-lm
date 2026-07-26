@@ -8,6 +8,8 @@ import {
   processSourceDocument,
   type IngestionResult,
 } from "../services/ingestionService.js";
+import { materializeStoredPdf } from "../services/ingestion/stored-pdf.js";
+import { prisma } from "../config/db.js";
 import { removeUploadedFile } from "../utils/uploaded-file.js";
 
 const workerConnection = createRedisConnection(null);
@@ -23,21 +25,35 @@ async function cleanupTemporaryPdf(jobData: IngestionJobData) {
   }
 }
 
+async function sourceExists(sourceId: string) {
+  const count = await prisma.source.count({ where: { id: sourceId } });
+  return count > 0;
+}
+
 export const ingestionWorker = new Worker<
   IngestionJobData,
   IngestionResult
 >(
   INGESTION_QUEUE_NAME,
   async (job) => {
+    let runtimeData = job.data;
+    let completed = false;
     try {
-      const result = await processSourceDocument(job.data);
-      await cleanupTemporaryPdf(job.data);
+      runtimeData = await materializeStoredPdf(job.data);
+      const result = await processSourceDocument(runtimeData);
+      completed = true;
       return result;
     } catch (error) {
-      if (isFinalAttempt(job)) {
-        await cleanupTemporaryPdf(job.data);
+      if (!(await sourceExists(job.data.sourceId))) {
+        completed = true;
+        return { sourceId: job.data.sourceId, chunkCount: 0, cancelled: true };
       }
       throw error;
+    } finally {
+      const isStoredPdf = Boolean(job.data.storagePath);
+      if (isStoredPdf || completed || isFinalAttempt(job)) {
+        await cleanupTemporaryPdf(runtimeData);
+      }
     }
   },
   {
@@ -47,6 +63,10 @@ export const ingestionWorker = new Worker<
 );
 
 ingestionWorker.on("completed", (job, result) => {
+  if (result.cancelled) {
+    console.log(`Ingestion job ${job.id} cancelled because its source was deleted`);
+    return;
+  }
   console.log(
     `Ingestion job ${job.id} completed with ${result.chunkCount} chunks`,
   );

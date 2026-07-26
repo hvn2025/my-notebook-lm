@@ -1,26 +1,46 @@
 import type { NextFunction, Request, Response } from "express";
-import { upsertUser } from "../services/user.service.js";
+import { getAuthIdentity } from "../middleware/auth.middleware.js";
+import {
+  ensureUserProfile,
+  isUsernameAvailable,
+} from "../services/user.service.js";
 
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-export async function createUser(
+export async function getCurrentUser(
   request: Request,
   response: Response,
   next: NextFunction,
 ) {
-  const email =
-    typeof request.body?.email === "string"
-      ? request.body.email.trim().toLowerCase()
-      : "";
-
-  if (!emailPattern.test(email)) {
-    response.status(400).json({ error: "A valid email is required" });
-    return;
-  }
-
   try {
-    const user = await upsertUser(email);
+    const user = await ensureUserProfile(getAuthIdentity(request));
+    response.json({ user });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function syncCurrentUser(
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) {
+  try {
+    const user = await ensureUserProfile(
+      getAuthIdentity(request),
+      request.body?.username,
+    );
     response.status(201).json({ user });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function checkUsernameAvailability(
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) {
+  try {
+    response.json(await isUsernameAvailable(request.query.username));
   } catch (error) {
     next(error);
   }

@@ -24,11 +24,13 @@ enum SourceType {
 }
 
 model User {
-  id        String     @id @default(uuid()) @db.Uuid
-  email     String     @unique
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @default(now()) @updatedAt
-  notebooks Notebook[]
+  id         String     @id @default(uuid()) @db.Uuid
+  authUserId String?    @unique @db.Uuid
+  username   String?    @unique
+  email      String     @unique
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @default(now()) @updatedAt
+  notebooks  Notebook[]
 }
 
 model Notebook {
@@ -47,6 +49,7 @@ model Source {
   id         String          @id @default(uuid()) @db.Uuid
   title      String
   url        String?
+  storagePath String?        @unique
   status     SourceStatus    @default(PENDING)
   type       SourceType
   notebookId String          @db.Uuid

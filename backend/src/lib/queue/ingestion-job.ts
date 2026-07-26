@@ -3,6 +3,7 @@ export type IngestionSourceType = "PDF" | "URL";
 export interface IngestionJobData {
   sourceId: string;
   type: IngestionSourceType;
+  storagePath?: string;
   filePath?: string;
   url?: string;
 }

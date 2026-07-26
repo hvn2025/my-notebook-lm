@@ -5,6 +5,11 @@ const configuredPort = Number(process.env.PORT ?? 4000);
 export const env = {
   port: Number.isInteger(configuredPort) ? configuredPort : 4000,
   clientOrigin: process.env.CLIENT_ORIGIN ?? "http://localhost:3000",
+  supabaseUrl: process.env.SUPABASE_URL,
+  supabasePublishableKey: process.env.SUPABASE_PUBLISHABLE_KEY,
+  supabaseSecretKey: process.env.SUPABASE_SECRET_KEY,
+  sourceStorageBucket:
+    process.env.SOURCE_STORAGE_BUCKET ?? "notebook-sources",
   redisUrl: process.env.REDIS_URL,
   openRouterApiKey: process.env.OPENROUTER_API_KEY,
   openRouterChatModel:

@@ -25,6 +25,23 @@ export function enqueueIngestionJob(data: IngestionJobData) {
   });
 }
 
+export async function removeIngestionJob(sourceId: string) {
+  const job = await ingestionQueue.getJob(sourceId);
+  if (!job) return "missing" as const;
+
+  const state = await job.getState();
+  if (state === "active") return "active" as const;
+
+  try {
+    await job.remove();
+    return "removed" as const;
+  } catch (error) {
+    const latestState = await job.getState().catch(() => "unknown");
+    if (latestState === "active") return "active" as const;
+    throw error;
+  }
+}
+
 export async function closeIngestionQueue() {
   await ingestionQueue.close();
 

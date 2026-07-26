@@ -19,6 +19,7 @@ export interface RagDebugMetadata {
   notebookId: string;
   originalQuestion: string;
   stepBackQuestion: string;
+  selectedSourceIds?: string[];
   chatModel: string;
   embeddingModel: string;
   retrieval: RetrievalDebug;
