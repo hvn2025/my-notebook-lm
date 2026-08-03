@@ -119,22 +119,21 @@ Configure `backend/.env`:
 
 ```env
 PORT=4000
-CLIENT_ORIGIN=http://localhost:3000
+CLIENT_ORIGIN=
 
-DATABASE_URL=postgresql://...
-DIRECT_DATABASE_URL=postgresql://...
+DATABASE_URL=
+DIRECT_DATABASE_URL=
 
-SUPABASE_URL=https://PROJECT_REF.supabase.co
-SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
-SUPABASE_SECRET_KEY=sb_secret_...
-SOURCE_STORAGE_BUCKET=notebook-sources
+SUPABASE_URL=
+SUPABASE_PUBLISHABLE_KEY=
+SUPABASE_SECRET_KEY=
+SOURCE_STORAGE_BUCKET=
 
-REDIS_URL=rediss://default:PASSWORD@HOST:PORT
+REDIS_URL=
 
 OPENROUTER_API_KEY=...
 OPENROUTER_CHAT_MODEL=openai/gpt-4o-mini
 OPENROUTER_EMBEDDING_MODEL=openai/text-embedding-3-small
-RAG_DEBUG=false
 ```
 
 Apply the committed migrations and generate Prisma Client:
